@@ -1,0 +1,15 @@
+# Environnement virtuel Python
+.venv/
+venv/
+ENV/
+
+# Fichiers d'environnement et cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Fichiers VS Code
+.vscode/
+
+# Données temporaires ou lourdes si nécessaire
+*.log
