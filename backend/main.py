@@ -31,9 +31,10 @@ class_names = ['amarante', 'legumes']
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def load_model():
-    model = models.resnet18(weights=None)
-    num_ftrs = model.fc.in_features
-    model.fc = nn.Linear(num_ftrs, len(class_names))
+    # Utilisation de MobileNetV2 pour correspondre au fichier plant_model.pth
+    model = models.mobilenet_v2(weights=None)
+    num_ftrs = model.classifier[1].in_features
+    model.classifier[1] = nn.Linear(num_ftrs, len(class_names))
     
     model_path = "plant_model.pth"
     if not os.path.exists(model_path):
@@ -41,9 +42,9 @@ def load_model():
         
     if os.path.exists(model_path):
         model.load_state_dict(torch.load(model_path, map_location=device))
-        print(" Modèle chargé avec succès.")
+        print("✅ Modèle chargé avec succès.")
     else:
-        print(" Fichier du modèle non trouvé.")
+        print("⚠️ Fichier du modèle non trouvé.")
         
     model.to(device)
     model.eval()
