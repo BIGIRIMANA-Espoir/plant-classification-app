@@ -1,128 +1,74 @@
 import os
-from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
-from torchvision import models
-from preprocessing import ImagePreprocessor
+from torchvision import datasets, models, transforms
+from torch.utils.data import DataLoader
 
-class PlantClassifierTrainer:
-    """
-    Classe d'entraînement de modèle de classification d'images
-    basée sur l'architecture MobileNetV2 en Transfer Learning.
-    """
+# 1. Hyperparamètres
+BATCH_SIZE = 16
+NUM_EPOCHS = 15
+LEARNING_RATE = 0.001
+DATA_DIR = "dataset"  # Dossier contenant 'amarante', 'legumes', 'maracoudja'
 
-    def __init__(self, num_classes: int = 2, learning_rate: float = 0.001):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.num_classes = num_classes
-        self.learning_rate = learning_rate
-        
-        # Chargement du modèle pré-entraîné MobileNetV2
-        self.model = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.DEFAULT)
-        
-        # Gel des couches de base (extraction de caractéristiques)
-        for param in self.model.parameters():
-            param.requires_grad = False
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Remplacement de la tête de classification
-        in_features = self.model.classifier[1].in_features
-        self.model.classifier[1] = nn.Linear(in_features, self.num_classes)
-        self.model.to(self.device)
+# 2. Transformations avec augmentation de données (Rigueur Pro)
+train_transforms = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.RandomHorizontalFlip(),
+    transforms.RandomRotation(15),
+    transforms.ColorJitter(brightness=0.2, contrast=0.2), # Résistance aux changements de lumière
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])
 
-        self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.Adam(self.model.classifier.parameters(), lr=self.learning_rate)
+# 3. Chargement des données
+dataset = datasets.ImageFolder(root=DATA_DIR, transform=train_transforms)
+dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
-    def prepare_dataloader(self, X: torch.Tensor, y: torch.Tensor, batch_size: int = 16, shuffle: bool = True) -> DataLoader:
-        # Conversion du format (N, H, W, C) vers le format PyTorch (N, C, H, W)
-        X_transposed = X.permute(0, 3, 1, 2)
-        dataset = TensorDataset(X_transposed, y)
-        return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+class_names = dataset.classes
+print(f"Classes détectées ({len(class_names)}) : {class_names}")
 
-    def train(self, train_loader: DataLoader, val_loader: DataLoader, epochs: int = 10, save_path: str = "backend/plant_model.pth"):
-        print(f"Début de l'entraînement sur : {self.device}\n")
-        best_val_acc = 0.0
+# 4. Modèle MobileNetV2 Pré-entraîné
+model = models.mobilenet_v2(weights=models.MobileNetV2_Weights.DEFAULT)
 
-        for epoch in range(1, epochs + 1):
-            # Phase d'entraînement
-            self.model.train()
-            running_loss = 0.0
-            correct_train = 0
-            total_train = 0
+# Adapter la sortie aux 3 classes
+num_ftrs = model.classifier[1].in_features
+model.classifier[1] = nn.Linear(num_ftrs, len(class_names))
+model = model.to(device)
 
-            for inputs, labels in train_loader:
-                inputs, labels = inputs.to(self.device), labels.to(self.device)
-                self.optimizer.zero_grad()
+# 5. Perte et Optimiseur
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
-                outputs = self.model(inputs)
-                loss = self.criterion(outputs, labels)
-                loss.backward()
-                self.optimizer.step()
+# 6. Boucle d'entraînement
+print(" Début de l'entraînement...")
+for epoch in range(NUM_EPOCHS):
+    model.train()
+    running_loss = 0.0
+    correct_preds = 0
+    total_preds = 0
 
-                running_loss += loss.item() * inputs.size(0)
-                _, predicted = outputs.max(1)
-                total_train += labels.size(0)
-                correct_train += predicted.eq(labels).sum().item()
+    for inputs, labels in dataloader:
+        inputs, labels = inputs.to(device), labels.to(device)
 
-            train_loss = running_loss / total_train
-            train_acc = (correct_train / total_train) * 100
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
 
-            # Phase de validation
-            self.model.eval()
-            val_loss = 0.0
-            correct_val = 0
-            total_val = 0
+        running_loss += loss.item() * inputs.size(0)
+        _, preds = torch.max(outputs, 1)
+        correct_preds += torch.sum(preds == labels.data)
+        total_preds += inputs.size(0)
 
-            with torch.no_grad():
-                for inputs, labels in val_loader:
-                    inputs, labels = inputs.to(self.device), labels.to(self.device)
-                    outputs = self.model(inputs)
-                    loss = self.criterion(outputs, labels)
+    epoch_loss = running_loss / total_preds
+    epoch_acc = (correct_preds.double() / total_preds) * 100
 
-                    val_loss += loss.item() * inputs.size(0)
-                    _, predicted = outputs.max(1)
-                    total_val += labels.size(0)
-                    correct_val += predicted.eq(labels).sum().item()
+    print(f"Époque {epoch+1}/{NUM_EPOCHS} - Perte: {epoch_loss:.4f} - Précision: {epoch_acc:.2f}%")
 
-            val_loss = val_loss / total_val
-            val_acc = (correct_val / total_val) * 100
-
-            print(f"Époque [{epoch:02d}/{epochs:02d}] "
-                  f"| Train Loss: {train_loss:.4f} - Train Acc: {train_acc:.2f}% "
-                  f"| Val Loss: {val_loss:.4f} - Val Acc: {val_acc:.2f}%")
-
-            # Sauvegarde du meilleur modèle
-            if val_acc > best_val_acc:
-                best_val_acc = val_acc
-                torch.save(self.model.state_dict(), save_path)
-
-        print(f"\nEntraînement terminé. Meilleure précision de validation : {best_val_acc:.2f}%")
-        print(f"Modèle sauvegardé dans : {save_path}")
-
-
-if __name__ == "__main__":
-    base_dir = Path("Plant-Classification-1")
-    if not base_dir.exists():
-        base_dir = Path("backend/Plant-Classification-1")
-
-    # 1. Chargement des données
-    preprocessor = ImagePreprocessor(target_size=(224, 224))
-    preprocessor.fit_classes(base_dir / "train")
-
-    X_train, y_train = preprocessor.process_split(base_dir / "train")
-    X_val, y_val = preprocessor.process_split(base_dir / "valid")
-
-    # 2. Conversion en Tenseurs PyTorch
-    X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
-    y_train_tensor = torch.tensor(y_train, dtype=torch.long)
-    X_val_tensor = torch.tensor(X_val, dtype=torch.float32)
-    y_val_tensor = torch.tensor(y_val, dtype=torch.long)
-
-    # 3. Initialisation du Trainer
-    trainer = PlantClassifierTrainer(num_classes=len(preprocessor.class_to_idx))
-
-    train_loader = trainer.prepare_dataloader(X_train_tensor, y_train_tensor, batch_size=16, shuffle=True)
-    val_loader = trainer.prepare_dataloader(X_val_tensor, y_val_tensor, batch_size=16, shuffle=False)
-
-    # 4. Lancement de l'entraînement
-    trainer.train(train_loader, val_loader, epochs=10)
+# 7. Sauvegarde du modèle entraîné
+torch.save(model.state_dict(), "plant_model.pth")
+print(" Entraînement terminé ! Modèle sauvegardé sous 'plant_model.pth'")

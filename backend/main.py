@@ -1,20 +1,19 @@
 import io
+import os
+from PIL import Image
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
-from PIL import Image
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
-import os
 
 app = FastAPI(
     title="Plant Classification API",
     description="API & Interface de classification d'images"
 )
 
-# CORS configuration
+# Configuration CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,15 +22,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mot de passe simple pour l'accès
-APP_PASSWORD = "admin"  # Tu pourras le changer ici !
+# Mot de passe d'accès
+APP_PASSWORD = "admin"
 
-# Configuration du modèle
-class_names = ['amarante', 'legumes']
+# Configuration des 3 classes exactes
+class_names = ['amarante', 'legumes', 'maracoudja']
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def load_model():
-    # Utilisation de MobileNetV2 pour correspondre au fichier plant_model.pth
+    # Architecture MobileNetV2 configurée pour 3 classes
     model = models.mobilenet_v2(weights=None)
     num_ftrs = model.classifier[1].in_features
     model.classifier[1] = nn.Linear(num_ftrs, len(class_names))
@@ -41,10 +40,15 @@ def load_model():
         model_path = "backend/plant_model.pth"
         
     if os.path.exists(model_path):
-        model.load_state_dict(torch.load(model_path, map_location=device))
-        print("✅ Modèle chargé avec succès.")
+        # Chargement sécurisé avec gestion d'erreurs
+        try:
+            model.load_state_dict(torch.load(model_path, map_location=device))
+            print(" Modèle chargé avec succès pour 3 classes.")
+        except Exception as e:
+            print(f" Erreur de correspondance des poids : {e}")
+            print(" Assurez-vous d'avoir ré-entraîné le modèle avec les 3 classes.")
     else:
-        print("⚠️ Fichier du modèle non trouvé.")
+        print(" Fichier du modèle non trouvé.")
         
     model.to(device)
     model.eval()
@@ -52,13 +56,14 @@ def load_model():
 
 model = load_model()
 
+# Transformations d'images (Normalisation Standard ImageNet)
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
-# Route pour la page principale HTML
+# Route Frontend HTML
 @app.get("/", response_class=HTMLResponse)
 async def serve_frontend():
     index_path = os.path.join("backend", "index.html")
@@ -66,18 +71,18 @@ async def serve_frontend():
         index_path = "index.html"
     return FileResponse(index_path)
 
-# Route de vérification du mot de passe
+# Route Authentification
 @app.post("/verify-password")
 async def verify_password(password: str = Form(...)):
     if password == APP_PASSWORD:
         return {"status": "ok", "message": "Accès autorisé"}
     raise HTTPException(status_code=401, detail="Mot de passe incorrect")
 
-# Route de prédiction
+# Route de prédiction avec rigueur élevée
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Le fichier doit être une image.")
+        raise HTTPException(status_code=400, detail="Le fichier doit être une image validée.")
     
     contents = await file.read()
     image = Image.open(io.BytesIO(contents)).convert("RGB")
@@ -91,12 +96,13 @@ async def predict(file: UploadFile = File(...)):
     pred_class = class_names[predicted_idx.item()]
     conf_score = float(confidence.item()) * 100
     
-    # Seuil de reconnaissance (si confiance < 50%, objet considéré comme inconnu)
-    is_known = conf_score >= 50.0
+    # En dessous de 85%, le résultat est jugé trop incertain.
+    CONFIDENCE_THRESHOLD = 85.0
+    is_known = conf_score >= CONFIDENCE_THRESHOLD
 
     return {
         "filename": file.filename,
-        "prediction": pred_class if is_known else "Inconnu / Non reconnu",
+        "prediction": pred_class.upper() if is_known else "Inconnu / Certitude insuffisante",
         "is_known": is_known,
         "confidence": f"{conf_score:.2f}%",
         "probabilities": {

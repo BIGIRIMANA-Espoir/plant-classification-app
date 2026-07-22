@@ -4,197 +4,372 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plant Classification AI</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
+        :root {
+            --bg-color: #1a262f;
+            --card-bg: #22313f;
+            --accent-color: #2ecc71;
+            --accent-hover: #27ae60;
+            --text-color: #ecf0f1;
+            --subtext-color: #bdc3c7;
+            --danger-color: #e74c3c;
+        }
+
         body {
-            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-            color: #fff;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
             min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            width: 100%;
+            max-width: 480px;
+            padding: 25px;
+            box-sizing: border-box;
+        }
+
+        h2 {
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
+            gap: 10px;
         }
-        .glass-card {
-            background: rgba(255, 255, 255, 0.08);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 20px;
-            padding: 35px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
-            width: 100%;
-            max-width: 520px;
+
+        .auth-box, .app-box {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
         }
-        .btn-custom {
-            background: linear-gradient(45deg, #11998e, #38ef7d);
-            border: none;
-            color: #fff;
-            font-weight: 600;
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Onglets Mode Fichier / Mode Caméra */
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            background: rgba(0,0,0,0.2);
+            padding: 5px;
             border-radius: 10px;
-            padding: 12px;
-            transition: all 0.3s ease;
         }
-        .btn-custom:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(56, 239, 125, 0.3);
-            color: #fff;
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background: transparent;
+            color: var(--subtext-color);
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.3s;
         }
-        .preview-img {
-            max-height: 250px;
-            border-radius: 12px;
-            object-fit: cover;
+
+        .tab-btn.active {
+            background: var(--accent-color);
+            color: #1a262f;
+        }
+
+        input[type="password"], input[type="file"] {
             width: 100%;
-            border: 2px dashed rgba(255,255,255,0.3);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #34495e;
+            background: #1a262f;
+            color: var(--text-color);
+            box-sizing: border-box;
         }
-        .hidden { display: none !important; }
-        .badge-confidence { font-size: 1.1rem; padding: 8px 16px; border-radius: 20px; }
+
+        button.action-btn {
+            background-color: var(--accent-color);
+            color: #1a262f;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+            width: 100%;
+        }
+
+        button.action-btn:hover {
+            background-color: var(--accent-hover);
+        }
+
+        /* Caméra & Prévisualisation */
+        .media-container {
+            width: 100%;
+            height: 250px;
+            background-color: #1a262f;
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            border: 2px dashed #34495e;
+        }
+
+        video, img#preview {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Résultat */
+        .result-box {
+            background-color: #1a262f;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 18px;
+            margin-top: 5px;
+        }
+
+        .badge-success { background-color: var(--accent-color); color: #1a262f; }
+        .badge-warning { background-color: var(--danger-color); color: white; }
+
+        .prob-list {
+            margin-top: 15px;
+            text-align: left;
+            font-size: 14px;
+            color: var(--subtext-color);
+        }
+
+        .prob-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
     </style>
 </head>
 <body>
 
-<div class="container d-flex justify-content-center">
-    
-    <!-- 🔒 ÉCRAN DE CONNEXION -->
-    <div id="login-screen" class="glass-card text-center">
-        <div class="mb-4">
-            <i class="bi bi-shield-lock-fill display-3 text-success"></i>
-            <h2 class="mt-3 font-weight-bold">Accès Sécurisé</h2>
-            <p class="text-white-50">Entrez le mot de passe pour accéder à l'IA</p>
-        </div>
-        <form id="login-form">
-            <div class="mb-3">
-                <input type="password" id="password-input" class="form-control form-control-lg bg-dark text-white border-secondary text-center" placeholder="Mot de passe" required>
-            </div>
-            <button type="submit" class="btn btn-custom w-100">Se connecter <i class="bi bi-arrow-right"></i></button>
-            <div id="login-error" class="text-danger mt-3 small hidden">Mot de passe incorrect !</div>
-        </form>
+<div class="container">
+    <h2>🌿 Classification IA</h2>
+
+    <!-- SECTION 1 : Mot de passe -->
+    <div id="auth-section" class="auth-box">
+        <p style="text-align: center; color: var(--subtext-color);">Accès sécurisé requis</p>
+        <input type="password" id="password-input" placeholder="Entrez le mot de passe...">
+        <button class="action-btn" onclick="login()">Se connecter</button>
+        <p id="auth-error" style="color: var(--danger-color); text-align: center; margin: 0;" class="hidden">Mot de passe incorrect</p>
     </div>
 
-    <!-- 🌿 ÉCRAN PRINCIPAL -->
-    <div id="app-screen" class="glass-card hidden text-center">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4 class="m-0"><i class="bi bi-flower1 text-success"></i> Classification IA</h4>
-            <button class="btn btn-sm btn-outline-light" onclick="logout()"><i class="bi bi-box-arrow-right"></i></button>
+    <!-- SECTION 2 : Application principale -->
+    <div id="app-section" class="app-box hidden">
+        
+        <!-- Sélection du mode -->
+        <div class="tab-buttons">
+            <button class="tab-btn active" id="tab-file-btn" onclick="switchTab('file')">📁 Import Fichier</button>
+            <button class="tab-btn" id="tab-cam-btn" onclick="switchTab('cam')">📷 Caméra Live</button>
         </div>
 
-        <!-- Zone d'importation -->
-        <div class="mb-3">
-            <img id="preview" class="preview-img mb-3 hidden" src="#" alt="Aperçu">
-            <input type="file" id="image-input" class="form-control bg-dark text-white border-secondary" accept="image/*">
-        </div>
-
-        <button id="analyze-btn" class="btn btn-custom w-100 mb-3" onclick="analyzeImage()" disabled>
-            <i class="bi bi-search"></i> Analyser la feuille
-        </button>
-
-        <!-- Loader -->
-        <div id="loader" class="spinner-border text-success my-3 hidden" role="status"></div>
-
-        <!-- Zone de Résultat -->
-        <div id="result-box" class="mt-3 p-3 bg-dark rounded-3 hidden border border-secondary">
-            <h5 class="text-white-50 mb-2">Résultat :</h5>
-            <h3 id="result-text" class="fw-bold mb-2">---</h3>
-            <span id="confidence-badge" class="badge badge-confidence bg-success">Confiance: --%</span>
-            
-            <div class="mt-3 text-start small text-white-50">
-                <div class="d-flex justify-content-between">
-                    <span>Amarante:</span> <strong id="prob-amarante" class="text-white">--</strong>
-                </div>
-                <div class="d-flex justify-content-between">
-                    <span>Légumes:</span> <strong id="prob-legumes" class="text-white">--</strong>
-                </div>
+        <!-- ZONE 1 : Importation de fichier -->
+        <div id="file-mode" class="app-box">
+            <input type="file" id="image-input" accept="image/*" onchange="previewFile()">
+            <div class="media-container">
+                <img id="preview" src="" class="hidden" alt="Aperçu">
+                <span id="placeholder-text" style="color: var(--subtext-color);">Aucune image sélectionnée</span>
             </div>
+            <button class="action-btn" onclick="analyzeFile()">🔍 Analyser l'image</button>
+        </div>
+
+        <!-- ZONE 2 : Caméra en direct -->
+        <div id="cam-mode" class="app-box hidden">
+            <div class="media-container">
+                <video id="webcam" autoplay playsinline class="hidden"></video>
+                <canvas id="canvas" class="hidden"></canvas>
+                <span id="cam-placeholder" style="color: var(--subtext-color);">Caméra désactivée</span>
+            </div>
+            <button class="action-btn" id="start-cam-btn" onclick="startCamera()">🔌 Activer la caméra</button>
+            <button class="action-btn hidden" id="capture-btn" onclick="captureAndAnalyze()">📸 Capture & Analyser</button>
+        </div>
+
+        <!-- ZONE 3 : Affichage des Résultats -->
+        <div id="result-section" class="result-box hidden">
+            <h3 style="margin: 0; color: var(--subtext-color);">Résultat :</h3>
+            <div id="prediction-badge" class="badge">---</div>
+            <p id="confidence-text" style="margin-top: 8px; font-weight: bold;"></p>
+
+            <div class="prob-list" id="prob-container"></div>
         </div>
 
     </div>
-
 </div>
 
 <script>
-    const APP_PASSWORD = "admin"; // Mot de passe d'accès par défaut
+    const API_URL = ""; // Relatif car hébergé sur la même instance FastAPI
+    let stream = null;
 
-    // Gestion de la connexion
-    document.getElementById('login-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const pwd = document.getElementById('password-input').value;
-        if(pwd === APP_PASSWORD) {
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('app-screen').classList.remove('hidden');
-        } else {
-            document.getElementById('login-error').classList.remove('hidden');
+    // Authentification
+    async function login() {
+        const password = document.getElementById('password-input').value;
+        const formData = new FormData();
+        formData.append('password', password);
+
+        try {
+            const response = await fetch('/verify-password', { method: 'POST', body: formData });
+            if (response.ok) {
+                document.getElementById('auth-section').classList.add('hidden');
+                document.getElementById('app-section').classList.remove('hidden');
+            } else {
+                document.getElementById('auth-error').classList.remove('hidden');
+            }
+        } catch (e) {
+            alert("Erreur de connexion avec le serveur.");
         }
-    });
-
-    function logout() {
-        document.getElementById('app-screen').classList.add('hidden');
-        document.getElementById('login-screen').classList.remove('hidden');
-        document.getElementById('password-input').value = '';
     }
 
-    // Prévisualisation d'image
-    const imageInput = document.getElementById('image-input');
-    const preview = document.getElementById('preview');
-    const analyzeBtn = document.getElementById('analyze-btn');
+    // Gestion des Onglets
+    function switchTab(mode) {
+        document.getElementById('result-section').classList.add('hidden');
+        if (mode === 'file') {
+            document.getElementById('tab-file-btn').classList.add('active');
+            document.getElementById('tab-cam-btn').classList.remove('active');
+            document.getElementById('file-mode').classList.remove('hidden');
+            document.getElementById('cam-mode').classList.add('hidden');
+            stopCamera();
+        } else {
+            document.getElementById('tab-cam-btn').classList.add('active');
+            document.getElementById('tab-file-btn').classList.remove('active');
+            document.getElementById('cam-mode').classList.remove('hidden');
+            document.getElementById('file-mode').classList.add('hidden');
+        }
+    }
 
-    imageInput.addEventListener('change', function() {
-        const file = this.files[0];
+    // MODE FICHIER
+    function previewFile() {
+        const file = document.getElementById('image-input').files[0];
         if (file) {
             const reader = new FileReader();
             reader.onload = function(e) {
-                preview.src = e.target.result;
-                preview.classList.remove('hidden');
-                analyzeBtn.disabled = false;
+                document.getElementById('preview').src = e.target.result;
+                document.getElementById('preview').classList.remove('hidden');
+                document.getElementById('placeholder-text').classList.add('hidden');
             }
             reader.readAsDataURL(file);
         }
-    });
+    }
 
-    // Envoi à l'API
-    async function analyzeImage() {
-        const file = imageInput.files[0];
-        if(!file) return;
-
+    async function analyzeFile() {
+        const fileInput = document.getElementById('image-input');
+        if (!fileInput.files[0]) {
+            alert("Veuillez d'abord choisir un fichier.");
+            return;
+        }
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', fileInput.files[0]);
+        sendPrediction(formData);
+    }
 
-        document.getElementById('loader').classList.remove('hidden');
-        document.getElementById('result-box').classList.add('hidden');
-
+    // MODE CAMÉRA
+    async function startCamera() {
         try {
-            const response = await fetch('/predict', {
-                method: 'POST',
-                body: formData
-            });
-
-            const data = await response.json();
-            document.getElementById('loader').classList.add('hidden');
-            document.getElementById('result-box').classList.remove('hidden');
-
-            const resultText = document.getElementById('result-text');
-            const confBadge = document.getElementById('confidence-badge');
-
-            if(data.is_known) {
-                resultText.innerText = data.prediction.toUpperCase();
-                resultText.className = "fw-bold mb-2 text-success";
-                confBadge.innerText = `Confiance : ${data.confidence}`;
-                confBadge.className = "badge badge-confidence bg-success";
-            } else {
-                resultText.innerText = "OBJET / PLANTE INCONNU(E)";
-                resultText.className = "fw-bold mb-2 text-warning";
-                confBadge.innerText = `Confiance faible : ${data.confidence}`;
-                confBadge.className = "badge badge-confidence bg-warning text-dark";
-            }
-
-            document.getElementById('prob-amarante').innerText = data.probabilities.amarante;
-            document.getElementById('prob-legumes').innerText = data.probabilities.legumes;
-
+            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            const video = document.getElementById('webcam');
+            video.srcObject = stream;
+            video.classList.remove('hidden');
+            document.getElementById('cam-placeholder').classList.add('hidden');
+            document.getElementById('start-cam-btn').classList.add('hidden');
+            document.getElementById('capture-btn').classList.remove('hidden');
         } catch (err) {
+            alert("Impossible d'accéder à la caméra : " + err.message);
+        }
+    }
+
+    function stopCamera() {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            document.getElementById('webcam').classList.add('hidden');
+            document.getElementById('cam-placeholder').classList.remove('hidden');
+            document.getElementById('start-cam-btn').classList.remove('hidden');
+            document.getElementById('capture-btn').classList.add('hidden');
+        }
+    }
+
+    async function captureAndAnalyze() {
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(async function(blob) {
+            const formData = new FormData();
+            formData.append('file', blob, 'capture.jpg');
+            sendPrediction(formData);
+        }, 'image/jpeg');
+    }
+
+    // Envoi à l'API FastAPI
+    async function sendPrediction(formData) {
+        try {
+            const response = await fetch('/predict', { method: 'POST', body: formData });
+            const data = await response.json();
+
+            if (response.ok) {
+                displayResult(data);
+            } else {
+                alert("Erreur: " + data.detail);
+            }
+        } catch (e) {
             alert("Erreur lors de l'analyse.");
-            document.getElementById('loader').classList.add('hidden');
+        }
+    }
+
+    // Affichage des résultats
+    function displayResult(data) {
+        const resultSection = document.getElementById('result-section');
+        const badge = document.getElementById('prediction-badge');
+        const confText = document.getElementById('confidence-text');
+        const probContainer = document.getElementById('prob-container');
+
+        resultSection.classList.remove('hidden');
+
+        if (data.is_known) {
+            badge.innerText = data.prediction;
+            badge.className = "badge badge-success";
+        } else {
+            badge.innerText = "INCONNU / CERTITUDE INSUFFISANTE";
+            badge.className = "badge badge-warning";
+        }
+
+        confText.innerText = `Niveau de confiance : ${data.confidence}`;
+
+        // Détails des probabilités
+        probContainer.innerHTML = "<strong>Détails :</strong>";
+        for (const [key, val] of Object.entries(data.probabilities)) {
+            probContainer.innerHTML += `
+                <div class="prob-item">
+                    <span>${key.toUpperCase()}</span>
+                    <span>${val}</span>
+                </div>
+            `;
         }
     }
 </script>
-
 </body>
 </html>
