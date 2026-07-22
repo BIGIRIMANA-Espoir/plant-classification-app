@@ -105,7 +105,7 @@ async def predict(file: UploadFile = File(...)):
 
     return {
         "filename": file.filename,
-        "prediction": pred_class.upper() if is_known else "INCONNU / CERTITUDE INSUFFISANTE",
+        "prediction": pred_class.upper() if is_known else "Iconnu!",
         "is_known": is_known,
         "confidence": f"{conf_score:.2f}%",
         "probabilities": {
